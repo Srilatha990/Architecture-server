@@ -127,36 +127,6 @@ const cloudinary = require('../utils/cloudinary'); // Import Cloudinary configur
 // Set up multer for file upload
 const upload = multer({ storage: multer.memoryStorage() }); // Use memoryStorage for Cloudinary upload
 
-// POST route to add service with image upload
-// const addService = async (req, res) => {
-//   const { title, description } = req.body;
-//   const imageFile = req.file; // This will be populated by multer
-
-//   if (!imageFile) {
-//     return res.status(400).json({ error: 'Image is required.' });
-//   }
-
-//   try {
-//     // Upload the image directly to Cloudinary
-//     const uploadedImage = await cloudinary.uploader.upload(imageFile.buffer, {
-//       resource_type: 'auto', // Automatically detect file type (e.g., image, PDF, etc.)
-//     });
-
-//     // Create a new service
-//     const newService = new Service({
-//       title,
-//       description,
-//       image: uploadedImage.secure_url, // Store the Cloudinary URL
-//     });
-
-//     await newService.save();
-//     res.status(201).json(newService);
-//   } catch (error) {
-//     console.error('Error in adding service:', error);
-//     res.status(500).json({ error: 'Error adding service.' });
-//   }
-// };
-
 const addService = async (req, res) => {
   try {
     console.log('Received body:', req.body); // Logs the non-file data (title, description)

@@ -118,14 +118,16 @@
 // };
 
 
+
+
 const multer = require('multer'); // Import multer
-const Project = require('../models/Project'); // Import the Project model
+const Project = require('../models/Project');
 const cloudinary = require('../utils/cloudinary'); // Import Cloudinary configuration
 
-// Set up multer for file upload
+// Set up multer for file upload (using memory storage for Cloudinary)
 const upload = multer({ storage: multer.memoryStorage() }); // Use memoryStorage for Cloudinary upload
 
-// POST route to add project with image upload
+// POST route to add a project with image upload
 const addProject = async (req, res) => {
   try {
     console.log('Received body:', req.body); // Logs the non-file data (title, description)
@@ -144,14 +146,15 @@ const addProject = async (req, res) => {
     });
 
     // Create a new project
-    const project = new Project({
+    const newProject = new Project({
       title,
       description,
       image: uploadedImage.secure_url, // Store the Cloudinary URL
     });
 
-    await project.save();
-    return res.status(201).json(project);
+    await newProject.save();
+    return res.status(201).json(newProject);
+
   } catch (error) {
     console.error('Error in adding project:', error); // Logs the error if the project creation fails
     return res.status(500).json({ message: 'Server error' });
@@ -183,7 +186,7 @@ const getProjectById = async (req, res) => {
   }
 };
 
-// PUT route to update project
+// PUT route to update a project
 const updateProject = async (req, res) => {
   const { title, description } = req.body;
   const imageFile = req.file; // This will be populated by multer
@@ -214,7 +217,7 @@ const updateProject = async (req, res) => {
   }
 };
 
-// DELETE route to remove project
+// DELETE route to remove a project
 const deleteProject = async (req, res) => {
   try {
     const project = await Project.findById(req.params.id);
@@ -222,10 +225,10 @@ const deleteProject = async (req, res) => {
       return res.status(404).json({ error: 'Project not found.' });
     }
 
-    // Delete the image from Cloudinary
+    // Delete the image from Cloudinary if it exists
     if (project.image) {
       const uploadedImageUrl = project.image;
-      const publicId = uploadedImageUrl.split('/').slice(-2).join('/').split('.')[0];
+      const publicId = uploadedImageUrl.split('/').slice(-2).join('/').split('.')[0]; // Extract publicId from URL
       await cloudinary.uploader.destroy(publicId);
     }
 
