@@ -124,9 +124,6 @@ const multer = require('multer'); // Import multer
 const Service = require('../models/Service');
 const cloudinary = require('../utils/cloudinary'); // Import Cloudinary configuration
 
-// Set up multer for file upload
-const upload = multer({ storage: multer.memoryStorage() }); // Use memoryStorage for Cloudinary upload
-
 // Function to handle adding a service with Cloudinary image upload
 const addService = async (req, res) => {
   try {
@@ -137,28 +134,36 @@ const addService = async (req, res) => {
     const imageFile = req.file; // Image uploaded via multer
 
     if (!title || !description || !imageFile) {
-      console.error('Missing required parameters');
       return res.status(400).json({ message: 'Missing required parameters' });
     }
 
-    // Upload image to Cloudinary
-    console.log('Uploading image to Cloudinary...');
-    const uploadedImage = await cloudinary.uploader.upload(imageFile.buffer, {
-      resource_type: 'auto', // Automatically detect file type
-    });
-    console.log('Cloudinary upload successful:', uploadedImage);
+    // Debug: Check if file exists and log the buffer size
+    console.log(`Image Buffer Size: ${imageFile.buffer.length} bytes`);
 
-    // Save the service with the Cloudinary URL
-    const service = new Service({
-      title,
-      description,
-      image: uploadedImage.secure_url, // Save Cloudinary URL
-    });
+    // Upload image to Cloudinary using upload_stream for buffer
+    cloudinary.uploader.upload_stream(
+      {
+        resource_type: 'auto', // Automatically detect file type (e.g., image, video, etc.)
+      },
+      async (error, uploadedImage) => {
+        if (error) {
+          console.error('Cloudinary upload failed:', error);
+          return res.status(500).json({ message: 'Cloudinary upload failed', error: error.message });
+        }
 
-    await service.save();
-    console.log('Service saved successfully:', service);
-    return res.status(201).json(service); // Return the service object with the image URL
+        console.log('Cloudinary upload successful:', uploadedImage);
 
+        // Save the service with the Cloudinary URL
+        const service = new Service({
+          title,
+          description,
+          image: uploadedImage.secure_url, // Save Cloudinary URL
+        });
+
+        await service.save();
+        return res.status(201).json(service); // Return the service object with the image URL
+      }
+    ).end(imageFile.buffer); // Pass the buffer to Cloudinary's upload_stream
   } catch (error) {
     console.error('Error in adding service:', error); // Logs the error if the service creation fails
     return res.status(500).json({ message: 'Server error' });
@@ -168,12 +173,10 @@ const addService = async (req, res) => {
 // Function to get all services
 const getAllServices = async (req, res) => {
   try {
-    console.log('Fetching all services...');
     const services = await Service.find();
-    console.log('Fetched services:', services);
     res.status(200).json(services);
   } catch (error) {
-    console.error('Error fetching services:', error);
+    console.error(error);
     res.status(500).json({ error: 'Error fetching services.' });
   }
 };
@@ -181,16 +184,13 @@ const getAllServices = async (req, res) => {
 // Function to fetch a single service by ID
 const getServiceById = async (req, res) => {
   try {
-    console.log('Fetching service by ID:', req.params.id);
     const service = await Service.findById(req.params.id);
     if (!service) {
-      console.error('Service not found:', req.params.id);
       return res.status(404).json({ error: 'Service not found.' });
     }
-    console.log('Fetched service:', service);
     res.status(200).json(service);
   } catch (error) {
-    console.error('Error fetching service:', error);
+    console.error(error);
     res.status(500).json({ error: 'Error fetching service.' });
   }
 };
@@ -201,10 +201,8 @@ const updateService = async (req, res) => {
   const imageFile = req.file; // This will be populated by multer
 
   try {
-    console.log('Fetching service for update by ID:', req.params.id);
     const service = await Service.findById(req.params.id);
     if (!service) {
-      console.error('Service not found:', req.params.id);
       return res.status(404).json({ error: 'Service not found.' });
     }
 
@@ -214,19 +212,27 @@ const updateService = async (req, res) => {
 
     // If there's a new image, upload it to Cloudinary
     if (imageFile) {
-      console.log('Uploading new image to Cloudinary...');
-      const uploadedImage = await cloudinary.uploader.upload(imageFile.buffer, {
-        resource_type: 'auto', // Automatically detect file type
-      });
-      console.log('Cloudinary upload successful:', uploadedImage);
-      service.image = uploadedImage.secure_url;
-    }
+      cloudinary.uploader.upload_stream(
+        {
+          resource_type: 'auto', // Automatically detect file type
+        },
+        async (error, uploadedImage) => {
+          if (error) {
+            console.error('Cloudinary upload failed:', error);
+            return res.status(500).json({ message: 'Cloudinary upload failed', error: error.message });
+          }
 
-    await service.save();
-    console.log('Service updated successfully:', service);
-    res.status(200).json(service);
+          service.image = uploadedImage.secure_url; // Update service image with Cloudinary URL
+          await service.save();
+          res.status(200).json(service);
+        }
+      ).end(imageFile.buffer); // Pass the buffer to Cloudinary's upload_stream
+    } else {
+      await service.save(); // Save without updating the image if no file is uploaded
+      res.status(200).json(service);
+    }
   } catch (error) {
-    console.error('Error updating service:', error);
+    console.error(error);
     res.status(500).json({ error: 'Error updating service.' });
   }
 };
@@ -234,10 +240,8 @@ const updateService = async (req, res) => {
 // Function to delete a service and its image from Cloudinary
 const deleteService = async (req, res) => {
   try {
-    console.log('Fetching service to delete by ID:', req.params.id);
     const service = await Service.findById(req.params.id);
     if (!service) {
-      console.error('Service not found:', req.params.id);
       return res.status(404).json({ error: 'Service not found.' });
     }
 
@@ -245,14 +249,11 @@ const deleteService = async (req, res) => {
     if (service.image) {
       const uploadedImageUrl = service.image;
       const publicId = uploadedImageUrl.split('/').slice(-2).join('/').split('.')[0]; // Extract public ID
-      console.log('Deleting image from Cloudinary with public ID:', publicId);
       await cloudinary.uploader.destroy(publicId); // Delete the image from Cloudinary
-      console.log('Cloudinary image deleted successfully');
     }
 
     // Delete the service from the database
     await Service.deleteOne({ _id: req.params.id });
-    console.log('Service deleted successfully:', req.params.id);
 
     res.status(200).json({ message: 'Service deleted successfully.' });
   } catch (error) {
