@@ -140,21 +140,33 @@ const addProject = async (req, res) => {
       return res.status(400).json({ message: 'Missing required parameters' });
     }
 
-    // Upload the image directly to Cloudinary
-    const uploadedImage = await cloudinary.uploader.upload(imageFile.buffer, {
-      resource_type: 'auto', // Automatically detect file type (e.g., image, PDF, etc.)
-    });
+    // Debug: Check if file exists and log the buffer size
+    console.log(`Image Buffer Size: ${imageFile.buffer.length} bytes`);
 
-    // Create a new project
-    const newProject = new Project({
-      title,
-      description,
-      image: uploadedImage.secure_url, // Store the Cloudinary URL
-    });
+    // Upload image to Cloudinary using upload_stream for buffer
+    cloudinary.uploader.upload_stream(
+      {
+        resource_type: 'auto', // Automatically detect file type (e.g., image, video, etc.)
+      },
+      async (error, uploadedImage) => {
+        if (error) {
+          console.error('Cloudinary upload failed:', error);
+          return res.status(500).json({ message: 'Cloudinary upload failed', error: error.message });
+        }
 
-    await newProject.save();
-    return res.status(201).json(newProject);
+        console.log('Cloudinary upload successful:', uploadedImage);
 
+        // Create a new project
+        const newProject = new Project({
+          title,
+          description,
+          image: uploadedImage.secure_url, // Store the Cloudinary URL
+        });
+
+        await newProject.save();
+        return res.status(201).json(newProject); // Return the project with image URL
+      }
+    ).end(imageFile.buffer); // Pass the buffer to Cloudinary's upload_stream
   } catch (error) {
     console.error('Error in adding project:', error); // Logs the error if the project creation fails
     return res.status(500).json({ message: 'Server error' });
@@ -201,16 +213,28 @@ const updateProject = async (req, res) => {
     project.title = title || project.title;
     project.description = description || project.description;
 
-    // If there's a new image, upload it to Cloudinary
+    // If there's a new image, upload it to Cloudinary using upload_stream
     if (imageFile) {
-      const uploadedImage = await cloudinary.uploader.upload(imageFile.buffer, {
-        resource_type: 'auto', // Automatically detect file type (e.g., image, PDF, etc.)
-      });
-      project.image = uploadedImage.secure_url;
-    }
+      cloudinary.uploader.upload_stream(
+        {
+          resource_type: 'auto', // Automatically detect file type
+        },
+        async (error, uploadedImage) => {
+          if (error) {
+            console.error('Cloudinary upload failed:', error);
+            return res.status(500).json({ message: 'Cloudinary upload failed', error: error.message });
+          }
 
-    await project.save();
-    res.status(200).json(project);
+          project.image = uploadedImage.secure_url; // Update the image field with Cloudinary URL
+          await project.save();
+          res.status(200).json(project);
+        }
+      ).end(imageFile.buffer); // Pass the buffer to Cloudinary's upload_stream
+    } else {
+      // Save without updating the image if no file is uploaded
+      await project.save();
+      res.status(200).json(project);
+    }
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Error updating project.' });
@@ -229,7 +253,7 @@ const deleteProject = async (req, res) => {
     if (project.image) {
       const uploadedImageUrl = project.image;
       const publicId = uploadedImageUrl.split('/').slice(-2).join('/').split('.')[0]; // Extract publicId from URL
-      await cloudinary.uploader.destroy(publicId);
+      await cloudinary.uploader.destroy(publicId); // Delete image from Cloudinary
     }
 
     // Delete the project from the database
