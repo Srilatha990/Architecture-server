@@ -120,14 +120,17 @@
 // };
 
 
-// controllers/serviceController.js
+const multer = require('multer'); // Import multer
 const Service = require('../models/Service');
 const cloudinary = require('../utils/cloudinary'); // Import Cloudinary configuration
+
+// Set up multer for file upload
+const upload = multer({ storage: multer.memoryStorage() }); // Use memoryStorage for Cloudinary upload
 
 // POST route to add service with image upload
 const addService = async (req, res) => {
   const { title, description } = req.body;
-  const imageFile = req.file;
+  const imageFile = req.file; // This will be populated by multer
 
   if (!imageFile) {
     return res.status(400).json({ error: 'Image is required.' });
@@ -135,7 +138,9 @@ const addService = async (req, res) => {
 
   try {
     // Upload the image directly to Cloudinary
-    const uploadedImage = await cloudinary.uploader.upload(imageFile.path);
+    const uploadedImage = await cloudinary.uploader.upload(imageFile.buffer, {
+      resource_type: 'auto', // Automatically detect file type (e.g., image, PDF, etc.)
+    });
 
     // Create a new service
     const newService = new Service({
@@ -180,7 +185,7 @@ const getServiceById = async (req, res) => {
 // PUT route to update service
 const updateService = async (req, res) => {
   const { title, description } = req.body;
-  const imageFile = req.file;
+  const imageFile = req.file; // This will be populated by multer
 
   try {
     const service = await Service.findById(req.params.id);
@@ -194,7 +199,9 @@ const updateService = async (req, res) => {
 
     // If there's a new image, upload it to Cloudinary
     if (imageFile) {
-      const uploadedImage = await cloudinary.uploader.upload(imageFile.path);
+      const uploadedImage = await cloudinary.uploader.upload(imageFile.buffer, {
+        resource_type: 'auto', // Automatically detect file type (e.g., image, PDF, etc.)
+      });
       service.image = uploadedImage.secure_url;
     }
 
@@ -238,4 +245,3 @@ module.exports = {
   updateService,
   deleteService,
 };
-
