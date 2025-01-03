@@ -127,6 +127,7 @@ const cloudinary = require('../utils/cloudinary'); // Import Cloudinary configur
 // Set up multer for file upload
 const upload = multer({ storage: multer.memoryStorage() }); // Use memoryStorage for Cloudinary upload
 
+// Function to handle adding a service with Cloudinary image upload
 const addService = async (req, res) => {
   try {
     console.log('Received body:', req.body); // Logs the non-file data (title, description)
@@ -139,14 +140,20 @@ const addService = async (req, res) => {
       return res.status(400).json({ message: 'Missing required parameters' });
     }
 
+    // Upload image to Cloudinary
+    const uploadedImage = await cloudinary.uploader.upload(imageFile.buffer, {
+      resource_type: 'auto', // Automatically detect file type
+    });
+
+    // Save the service with the Cloudinary URL
     const service = new Service({
       title,
       description,
-      image: imageFile ? `/images/${imageFile.filename}` : null, // Adjust if you're storing image URL
+      image: uploadedImage.secure_url, // Save Cloudinary URL
     });
 
     await service.save();
-    return res.status(201).json(service);
+    return res.status(201).json(service); // Return the service object with the image URL
 
   } catch (error) {
     console.error('Error in adding service:', error); // Logs the error if the service creation fails
@@ -154,8 +161,7 @@ const addService = async (req, res) => {
   }
 };
 
-
-// GET route to fetch all services
+// Function to get all services
 const getAllServices = async (req, res) => {
   try {
     const services = await Service.find();
@@ -166,7 +172,7 @@ const getAllServices = async (req, res) => {
   }
 };
 
-// GET route to fetch a single service by ID
+// Function to fetch a single service by ID
 const getServiceById = async (req, res) => {
   try {
     const service = await Service.findById(req.params.id);
@@ -180,7 +186,7 @@ const getServiceById = async (req, res) => {
   }
 };
 
-// PUT route to update service
+// Function to update an existing service (including image)
 const updateService = async (req, res) => {
   const { title, description } = req.body;
   const imageFile = req.file; // This will be populated by multer
@@ -198,7 +204,7 @@ const updateService = async (req, res) => {
     // If there's a new image, upload it to Cloudinary
     if (imageFile) {
       const uploadedImage = await cloudinary.uploader.upload(imageFile.buffer, {
-        resource_type: 'auto', // Automatically detect file type (e.g., image, PDF, etc.)
+        resource_type: 'auto', // Automatically detect file type
       });
       service.image = uploadedImage.secure_url;
     }
@@ -211,7 +217,7 @@ const updateService = async (req, res) => {
   }
 };
 
-// DELETE route to remove service
+// Function to delete a service and its image from Cloudinary
 const deleteService = async (req, res) => {
   try {
     const service = await Service.findById(req.params.id);
@@ -219,11 +225,11 @@ const deleteService = async (req, res) => {
       return res.status(404).json({ error: 'Service not found.' });
     }
 
-    // Delete the image from Cloudinary
+    // Delete the image from Cloudinary (if any)
     if (service.image) {
       const uploadedImageUrl = service.image;
-      const publicId = uploadedImageUrl.split('/').slice(-2).join('/').split('.')[0];
-      await cloudinary.uploader.destroy(publicId);
+      const publicId = uploadedImageUrl.split('/').slice(-2).join('/').split('.')[0]; // Extract public ID
+      await cloudinary.uploader.destroy(publicId); // Delete the image from Cloudinary
     }
 
     // Delete the service from the database
