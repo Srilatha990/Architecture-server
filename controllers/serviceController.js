@@ -128,34 +128,62 @@ const cloudinary = require('../utils/cloudinary'); // Import Cloudinary configur
 const upload = multer({ storage: multer.memoryStorage() }); // Use memoryStorage for Cloudinary upload
 
 // POST route to add service with image upload
+// const addService = async (req, res) => {
+//   const { title, description } = req.body;
+//   const imageFile = req.file; // This will be populated by multer
+
+//   if (!imageFile) {
+//     return res.status(400).json({ error: 'Image is required.' });
+//   }
+
+//   try {
+//     // Upload the image directly to Cloudinary
+//     const uploadedImage = await cloudinary.uploader.upload(imageFile.buffer, {
+//       resource_type: 'auto', // Automatically detect file type (e.g., image, PDF, etc.)
+//     });
+
+//     // Create a new service
+//     const newService = new Service({
+//       title,
+//       description,
+//       image: uploadedImage.secure_url, // Store the Cloudinary URL
+//     });
+
+//     await newService.save();
+//     res.status(201).json(newService);
+//   } catch (error) {
+//     console.error('Error in adding service:', error);
+//     res.status(500).json({ error: 'Error adding service.' });
+//   }
+// };
+
 const addService = async (req, res) => {
-  const { title, description } = req.body;
-  const imageFile = req.file; // This will be populated by multer
-
-  if (!imageFile) {
-    return res.status(400).json({ error: 'Image is required.' });
-  }
-
   try {
-    // Upload the image directly to Cloudinary
-    const uploadedImage = await cloudinary.uploader.upload(imageFile.buffer, {
-      resource_type: 'auto', // Automatically detect file type (e.g., image, PDF, etc.)
-    });
+    console.log('Received body:', req.body); // Logs the non-file data (title, description)
+    console.log('Received file:', req.file); // Logs the uploaded file (image)
 
-    // Create a new service
-    const newService = new Service({
+    const { title, description } = req.body;
+    const imageFile = req.file; // Image uploaded via multer
+
+    if (!title || !description || !imageFile) {
+      return res.status(400).json({ message: 'Missing required parameters' });
+    }
+
+    const service = new Service({
       title,
       description,
-      image: uploadedImage.secure_url, // Store the Cloudinary URL
+      image: imageFile ? `/images/${imageFile.filename}` : null, // Adjust if you're storing image URL
     });
 
-    await newService.save();
-    res.status(201).json(newService);
+    await service.save();
+    return res.status(201).json(service);
+
   } catch (error) {
-    console.error('Error in adding service:', error);
-    res.status(500).json({ error: 'Error adding service.' });
+    console.error('Error in adding service:', error); // Logs the error if the service creation fails
+    return res.status(500).json({ message: 'Server error' });
   }
 };
+
 
 // GET route to fetch all services
 const getAllServices = async (req, res) => {
