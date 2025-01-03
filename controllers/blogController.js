@@ -163,8 +163,9 @@ const addBlog = async (req, res) => {
   const { title, description, category, author } = req.body;
   const imageFile = req.file;
 
-  if (!imageFile) {
-    return res.status(400).json({ error: 'Image is required.' });
+  // Check if all required fields are present
+  if (!title || !description || !category || !author || !imageFile) {
+    return res.status(400).json({ error: 'Missing required parameters.' });
   }
 
   try {
