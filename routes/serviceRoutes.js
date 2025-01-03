@@ -36,7 +36,7 @@ const upload = multer({ storage: storage });
 
 const router = express.Router();
 
-router.post('/services/insert', upload.single('image'), serviceController.addService);
+router.post('/services', upload.single('image'), serviceController.addService);
 router.get('/services', serviceController.getAllServices);
 router.get('/services/:id', serviceController.getServiceById);
 router.put('/services/:id', upload.single('image'), serviceController.updateService);
