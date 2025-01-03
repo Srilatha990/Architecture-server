@@ -26,9 +26,8 @@
 
 //         let profileImageUrl = null;
 //         if (imageFile) {
-//             // Upload the image to Cloudinary
 //             const uploadedImage = await cloudinary.uploader.upload(imageFile.path, {
-//                 folder: './uploads', // Save in the 'uploads' folder in Cloudinary
+//                 folder: './uploads',
 //             });
 //             profileImageUrl = uploadedImage.secure_url;
 //         }
@@ -98,10 +97,26 @@
 //     }
 // };
 
+// // Fetch User Details (Account Page)
+// const getUserDetails = async (req, res) => {
+//     const userId = req.user.id; // Assuming authenticated user's ID is fetched from JWT
+
+//     try {
+//         const user = await User.findById(userId).select('-password -otp'); // Exclude sensitive fields
+//         if (!user) {
+//             return res.status(404).json({ message: 'User not found' });
+//         }
+
+//         res.status(200).json(user);
+//     } catch (error) {
+//         res.status(500).json({ message: 'Failed to fetch user details', error });
+//     }
+// };
+
 // // Update User Details
 // const updateUserDetails = async (req, res) => {
-//     const userId = req.user.id; // Assuming user is authenticated and their ID is available in the JWT token
-//     const { FirstName, LastName, phoneNumber } = req.body;
+//     const userId = req.user.id; // Assuming user ID is fetched from the authenticated JWT
+//     const { FirstName, LastName, phoneNumber, email } = req.body; // Include email in the request body
 //     const imageFile = req.file;
 //     let profileImageUrl = null;
 
@@ -109,6 +124,15 @@
 //         const user = await User.findById(userId);
 //         if (!user) {
 //             return res.status(404).json({ message: 'User not found' });
+//         }
+
+//         // Check if the new email is already in use
+//         if (email && email !== user.email) {
+//             const existingUser = await User.findOne({ email });
+//             if (existingUser) {
+//                 return res.status(400).json({ message: 'Email is already in use' });
+//             }
+//             user.email = email; // Update the email
 //         }
 
 //         // Update the user details
@@ -119,7 +143,7 @@
 //         // Upload new image to Cloudinary if a new image is provided
 //         if (imageFile) {
 //             const uploadedImage = await cloudinary.uploader.upload(imageFile.path, {
-//                 folder: './uploads', // Save in the 'uploads' folder in Cloudinary
+//                 folder: './uploads',
 //             });
 //             profileImageUrl = uploadedImage.secure_url;
 //             user.profileImage = profileImageUrl;
@@ -137,7 +161,7 @@
 //     res.status(200).json({ message: 'Logout successful' });
 // };
 
-// // Get all users (Admin)
+// // Get All Users (Admin)
 // const getAllUsers = async (req, res) => {
 //     try {
 //         const users = await User.find();
@@ -151,25 +175,22 @@
 //     registerUser,
 //     verifyOtp,
 //     loginUser,
+//     getUserDetails,
 //     updateUserDetails,
 //     logoutUser,
-//     getAllUsers
+//     getAllUsers,
 // };
-
-
 
 
 const User = require('../models/User');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { sendEmail } = require('../utils/emailservice');
-const cloudinary = require('../utils/cloudinary');
 const JWT_SECRET = process.env.JWT_SECRET;
 
 // Register
 const registerUser = async (req, res) => {
     const { FirstName, LastName, email, phoneNumber, password, confirmpassword } = req.body;
-    const imageFile = req.file;
 
     if (password !== confirmpassword) {
         return res.status(400).json({ message: 'Passwords do not match' });
@@ -184,14 +205,6 @@ const registerUser = async (req, res) => {
         const hashedPassword = await bcrypt.hash(password, 10);
         const otp = Math.floor(100000 + Math.random() * 900000).toString();
 
-        let profileImageUrl = null;
-        if (imageFile) {
-            const uploadedImage = await cloudinary.uploader.upload(imageFile.path, {
-                folder: './uploads',
-            });
-            profileImageUrl = uploadedImage.secure_url;
-        }
-
         const newUser = new User({
             FirstName,
             LastName,
@@ -200,7 +213,6 @@ const registerUser = async (req, res) => {
             password: hashedPassword,
             confirmpassword: hashedPassword,
             otp,
-            profileImage: profileImageUrl,
         });
 
         await newUser.save();
@@ -276,9 +288,7 @@ const getUserDetails = async (req, res) => {
 // Update User Details
 const updateUserDetails = async (req, res) => {
     const userId = req.user.id; // Assuming user ID is fetched from the authenticated JWT
-    const { FirstName, LastName, phoneNumber, email } = req.body; // Include email in the request body
-    const imageFile = req.file;
-    let profileImageUrl = null;
+    const { FirstName, LastName, phoneNumber, email } = req.body;
 
     try {
         const user = await User.findById(userId);
@@ -299,15 +309,6 @@ const updateUserDetails = async (req, res) => {
         user.FirstName = FirstName || user.FirstName;
         user.LastName = LastName || user.LastName;
         user.phoneNumber = phoneNumber || user.phoneNumber;
-
-        // Upload new image to Cloudinary if a new image is provided
-        if (imageFile) {
-            const uploadedImage = await cloudinary.uploader.upload(imageFile.path, {
-                folder: './uploads',
-            });
-            profileImageUrl = uploadedImage.secure_url;
-            user.profileImage = profileImageUrl;
-        }
 
         await user.save();
         res.status(200).json({ message: 'User details updated successfully', user });
